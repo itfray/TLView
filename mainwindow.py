@@ -1,5 +1,6 @@
 from PySide2.QtWidgets import QMainWindow
 from ui_mainwindow import Ui_MainWindow
+from TLTableModel import TLTableModel
 
 
 class MainWindow(QMainWindow):
@@ -7,3 +8,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        # link model with view
+        self.tlTableModel = TLTableModel()
+        self.ui.tableView.setModel(self.tlTableModel)
