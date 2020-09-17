@@ -1,17 +1,45 @@
 from operator import itemgetter
 import psutil
 import socket
+import struct
 from PySide2.QtCore import QAbstractTableModel, Qt, QModelIndex, Slot
 from PySide2.QtGui import QColor
+
 
 def nameTransportProtocol(family: socket.AddressFamily, type: socket.SocketKind)-> str:
     if type == socket.SOCK_STREAM:
         ans = "TCP"
-    elif type == socket.SOCK_DGRAM:
+    else:
         ans = "UDP"
     if family == socket.AF_INET6:
         ans += "V6"
     return ans
+
+def psutilAddrToIPAndPort(paddr, pfamily)-> tuple:      # -> tuple(bytes, int)
+    """
+        Correct result network address of psutil.net_connections()
+    """
+    if type(paddr) != tuple:
+        ip, port = paddr.ip, paddr.port
+    else:
+        ip, port = ('::', 0) if pfamily == socket.AF_INET6 else ('0.0.0.0', 0)
+    return socket.inet_pton(pfamily, ip), port
+
+
+def IPToViewStr(ip: bytes, family: socket.AddressFamily, type: socket.SocketKind)-> str:
+    zero_ip = bytes([0]*4) if family != socket.AF_INET6 else bytes([0]*16)
+    if ip == zero_ip:
+        if type == socket.SOCK_DGRAM:
+            return "*"
+    return socket.inet_ntop(family, ip)
+
+def portToViewStr(port: int, type: socket.SocketKind)-> str:
+    if port == 0:
+        if type == socket.SOCK_DGRAM:
+            return "*"
+    return str(port)
+
+statusToViewStr = lambda val: '' if val == "NONE" else val
 
 # All main headers in TLTableModel
 TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
@@ -22,30 +50,32 @@ class TLTableModel(QAbstractTableModel):
     def __init__(self):
         super().__init__()
         self.net_connections = []
-        self.sortColumn = 1         # sorted column number
-        self.sortASC = False  # ascending sort?
+        self.sortColumn = 0         # sorted column number
+        self.sortASC = False        # ascending sort?
         self.updateData()
 
     @Slot()
     def updateData(self):
         """
-         * 1. load system data about all network connections on taransport layer
-         * 2. create data table
+            load system data about all network connections on taransport layer and
+            create data table
         """
-        psutilAddrToIPAndPort = lambda paddr: (paddr.ip, paddr.port)\
-            if type(paddr) != tuple else ('*', '*')
-        statusBadValToGoodVal = lambda val: '' if val == 'NONE' else val
+        # notify the view of the begin of a radical change in data
+        self.beginResetModel()
         self.net_connections = []
         # create data table
         for connection in psutil.net_connections():
-            process = psutil.Process(connection.pid)
-            row = [process.name(), connection.pid,
-                   nameTransportProtocol(connection.family, connection.type),
-                   *psutilAddrToIPAndPort(connection.laddr),
-                   *psutilAddrToIPAndPort(connection.raddr),
-                   statusBadValToGoodVal(connection.status)]
+            try:
+                process = psutil.Process(connection.pid)
+            except psutil.NoSuchProcess:
+                continue
+            row = [process.name(), connection.pid, (connection.family, connection.type),
+                   *psutilAddrToIPAndPort(connection.laddr, connection.family),
+                   *psutilAddrToIPAndPort(connection.raddr, connection.family), connection.status]
             self.net_connections.append(row)
         self.sortData()
+        # notify the view of the end of a radical change in data
+        self.endResetModel()
 
     @Slot()
     def sortData(self):
@@ -85,9 +115,32 @@ class TLTableModel(QAbstractTableModel):
         if role == Qt.DisplayRole:
             if row >= 0 and row < self.rowCount() \
                     and column >= 0 and column < self.columnCount():
-                    return str(self.net_connections[row][column])
+                if column == 2:
+                    return nameTransportProtocol(*self.net_connections[row][column])
+                elif column == 3 or column == 5:
+                    return IPToViewStr(self.net_connections[row][column], *self.net_connections[row][2])
+                elif column == 6:
+                    return portToViewStr(self.net_connections[row][column], self.net_connections[row][2][1])
+                elif column == 7:
+                    return statusToViewStr(self.net_connections[row][column])
+                return str(self.net_connections[row][column])
         elif role == Qt.BackgroundRole:
             return QColor(Qt.white)
         elif role == Qt.TextAlignmentRole:
             return Qt.AlignRight
         return None
+
+    def countEndpoints(self):
+        pass
+
+    def countEstablished(self):
+        pass
+
+    def countListen(self):
+        pass
+
+    def countTimeWait(self):
+        pass
+
+    def countCloseWait(self):
+        pass
