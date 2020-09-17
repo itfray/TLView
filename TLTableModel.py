@@ -41,6 +41,19 @@ def portToViewStr(port: int, type: socket.SocketKind)-> str:
 
 statusToViewStr = lambda val: '' if val == "NONE" else val
 
+def generateCountValueInTable(table, column, value):
+    """
+        creates a function that counts the number of rows
+        that have a specific value in a particular column
+    """
+    def countValueInTable():
+        count = 0
+        for row in table:
+            if row[column] == value:
+                count += 1
+        return count
+    return countValueInTable
+
 # All main headers in TLTableModel
 TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
                  "Remote Address", "Remote Port", "State")
@@ -52,7 +65,12 @@ class TLTableModel(QAbstractTableModel):
         self.net_connections = []
         self.sortColumn = 0         # sorted column number
         self.sortASC = False        # ascending sort?
+        self.countEstablished = generateCountValueInTable(self.net_connections, 7, "ESTABLISHED")
+        self.countListen = generateCountValueInTable(self.net_connections, 7, "LISTEN")
+        self.countCloseWait = generateCountValueInTable(self.net_connections, 7, "CLOSE_WAIT")
+        self.countTimeWait = generateCountValueInTable(self.net_connections, 7, "TIME_WAIT")
         self.updateData()
+
 
     @Slot()
     def updateData(self):
@@ -131,16 +149,4 @@ class TLTableModel(QAbstractTableModel):
         return None
 
     def countEndpoints(self):
-        pass
-
-    def countEstablished(self):
-        pass
-
-    def countListen(self):
-        pass
-
-    def countTimeWait(self):
-        pass
-
-    def countCloseWait(self):
-        pass
+        return self.rowCount()
