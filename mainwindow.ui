@@ -39,6 +39,52 @@
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>BottomToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionEndpoints"/>
+   <addaction name="separator"/>
+   <addaction name="actionEstablished"/>
+   <addaction name="separator"/>
+   <addaction name="actionListen"/>
+   <addaction name="separator"/>
+   <addaction name="actionTime_Wait"/>
+   <addaction name="separator"/>
+   <addaction name="actionClose_Wait"/>
+   <addaction name="separator"/>
+  </widget>
+  <action name="actionEndpoints">
+   <property name="text">
+    <string>Endpoints: 0</string>
+   </property>
+  </action>
+  <action name="actionEstablished">
+   <property name="text">
+    <string>Established: 0</string>
+   </property>
+  </action>
+  <action name="actionListen">
+   <property name="text">
+    <string>Listen: 0</string>
+   </property>
+  </action>
+  <action name="actionTime_Wait">
+   <property name="text">
+    <string>Time Wait: 0</string>
+   </property>
+  </action>
+  <action name="actionClose_Wait">
+   <property name="text">
+    <string>Close Wait: 0</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources/>
