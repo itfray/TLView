@@ -6,6 +6,10 @@ from PySide2.QtCore import QTimer, Slot, Signal, QThread, Qt
 
 TIMER_VALUES = (1000, 3000, 5000)
 
+
+def slot_kill_process():
+    pass
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -45,4 +49,5 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         killAction = QAction("End process...", self)
         menu.addAction(killAction)
+        killAction.triggered.connect(slot_kill_process)
         menu.popup(self.ui.tableView.viewport().mapToGlobal(pos))
