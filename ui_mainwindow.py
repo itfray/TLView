@@ -11,6 +11,7 @@
 from PySide2.QtCore import *
 from PySide2.QtGui import *
 from PySide2.QtWidgets import *
+from TLTableView import TLTableView
 
 
 class Ui_MainWindow(object):
@@ -34,7 +35,7 @@ class Ui_MainWindow(object):
         self.gridLayout.setSpacing(6)
         self.gridLayout.setContentsMargins(11, 11, 11, 11)
         self.gridLayout.setObjectName(u"gridLayout")
-        self.tableView = QTableView(self.centralWidget)
+        self.tableView = TLTableView(self.centralWidget)
         self.tableView.setObjectName(u"tableView")
 
         self.gridLayout.addWidget(self.tableView, 0, 0, 1, 1)
