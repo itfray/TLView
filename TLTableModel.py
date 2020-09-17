@@ -39,16 +39,17 @@ def portToViewStr(port: int, type: socket.SocketKind)-> str:
             return "*"
     return str(port)
 
-statusToViewStr = lambda val: '' if val == "NONE" else val
+def statusToViewStr(val: str)-> str:
+    return '' if val == "NONE" else val
 
-def generateCountValueInTable(table, column, value):
+def generateCountValueInTable(tltablemodel, column, value):
     """
         creates a function that counts the number of rows
         that have a specific value in a particular column
     """
     def countValueInTable():
         count = 0
-        for row in table:
+        for row in tltablemodel._TLTableModel__networkConnections():
             if row[column] == value:
                 count += 1
         return count
@@ -62,13 +63,15 @@ TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
 class TLTableModel(QAbstractTableModel):
     def __init__(self):
         super().__init__()
-        self.net_connections = []
+        self.net_connections = []   # main model table
         self.sortColumn = 0         # sorted column number
         self.sortASC = False        # ascending sort?
-        self.countEstablished = generateCountValueInTable(self.net_connections, 7, "ESTABLISHED")
-        self.countListen = generateCountValueInTable(self.net_connections, 7, "LISTEN")
-        self.countCloseWait = generateCountValueInTable(self.net_connections, 7, "CLOSE_WAIT")
-        self.countTimeWait = generateCountValueInTable(self.net_connections, 7, "TIME_WAIT")
+        # create function for count the number of rows status == "ESTABLISHED"
+        self.countEstablished = generateCountValueInTable(self, 7, "ESTABLISHED")
+        self.countListen = generateCountValueInTable(self, 7, "LISTEN")
+        self.countCloseWait = generateCountValueInTable(self, 7, "CLOSE_WAIT")
+        self.countTimeWait = generateCountValueInTable(self, 7, "TIME_WAIT")
+        # load system data in self.net_connections
         self.updateData()
 
 
@@ -120,6 +123,9 @@ class TLTableModel(QAbstractTableModel):
         return len(self.net_connections[0])
 
     def headerData(self, section, orientation, role):
+        """
+            return every column header
+        """
         if role != Qt.DisplayRole:
             return None
         if orientation == Qt.Horizontal:
@@ -128,6 +134,9 @@ class TLTableModel(QAbstractTableModel):
             return f'{section}'
 
     def data(self, index, role=Qt.DisplayRole):
+        """
+            need for get data of model
+        """
         column = index.column()
         row = index.row()
         if role == Qt.DisplayRole:
@@ -150,3 +159,6 @@ class TLTableModel(QAbstractTableModel):
 
     def countEndpoints(self):
         return self.rowCount()
+
+    def __networkConnections(self):
+        return self.net_connections

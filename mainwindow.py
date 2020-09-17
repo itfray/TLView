@@ -1,7 +1,7 @@
 from PySide2.QtWidgets import QMainWindow
 from ui_mainwindow import Ui_MainWindow
 from TLTableModel import TLTableModel
-from PySide2.QtCore import QTimer
+from PySide2.QtCore import QTimer, Slot
 
 
 TIMER_VALUES = (1000, 3000, 5000)
@@ -20,5 +20,13 @@ class MainWindow(QMainWindow):
         # link model with timer
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tlTableModel.updateData)
+        self.timer.timeout.connect(self.updateStatusBar)
         self.timer.setInterval(TIMER_VALUES[0])
         self.timer.start()
+
+    @Slot()
+    def updateStatusBar(self):
+        status = f'Endpoints: {self.tlTableModel.countEndpoints()} | Established: {self.tlTableModel.countEstablished()} |'\
+                 f'Listen: {self.tlTableModel.countListen()} | Time wait: {self.tlTableModel.countTimeWait()} |'\
+                 f'Close wait: {self.tlTableModel.countCloseWait()} |'
+        self.statusBar().showMessage(status, TIMER_VALUES[0])
