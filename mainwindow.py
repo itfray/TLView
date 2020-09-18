@@ -1,7 +1,8 @@
-from PySide2.QtWidgets import QMainWindow, QMenu, QAction
+from PySide2.QtWidgets import QMainWindow, QMenu, QAction, QMessageBox
 from ui_mainwindow import Ui_MainWindow
 from tltablemodel import TLTableModel
 from PySide2.QtCore import QTimer, Slot, Signal, QThread, Qt
+import psutil
 
 
 TIMER_VALUES = (1000, 3000, 5000)
@@ -54,5 +55,34 @@ class MainWindow(QMainWindow):
         menu.popup(self.ui.tableView.viewport().mapToGlobal(pos))
 
     @Slot()
-    def slot_terminate_process():
-        pass
+    def slot_terminate_process(self):
+        """ Handle for process termination"""
+        selected_inds = self.ui.tableView.selectedIndexes()
+        if len(selected_inds) == 0:
+            return
+        self.timer.stop()                                       # stop updating data on the window
+        selected_row = selected_inds[0].row()
+        process_name = self.tableModel.process(selected_row)    # get process name selected process
+        # create message box for confirmation process termination
+        ans = QMessageBox.warning(self, "Process termination", f"Terminate the process <{process_name}>?",
+                                  QMessageBox.Yes, QMessageBox.No)
+        if ans == QMessageBox.No:
+            self.timer.start()
+            return
+        flag_error = False                              # flag_error == True if there were exceptions
+        pid = int(self.tableModel.pid(selected_row))    # get pid selected process
+        try:
+            process = psutil.Process(pid)               # get process handle
+            process.terminate()
+        except psutil.NoSuchProcess:
+            QMessageBox.information(self, "Process termination", "The process has already been terminated!!!",
+                                    QMessageBox.Ok)
+            flag_error = True
+        except psutil.AccessDenied:
+            QMessageBox.critical(self, "Process termination", "Access is denied. You need administrator rights!!!",
+                                    QMessageBox.Ok)
+            flag_error = True
+        if not flag_error:
+            QMessageBox.information(self, "Process termination", "The process was completed successfully!!!",
+                                 QMessageBox.Ok)
+        self.timer.start()

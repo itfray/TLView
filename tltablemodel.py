@@ -150,6 +150,37 @@ class TLTableModel(QAbstractTableModel):
             return Qt.AlignRight
         return None
 
+    def realData(self, row: int, column: int):
+        """ get real data of model """
+        if row < 0 or row >= self.rowCount() \
+                or column < 0 or column >= self.columnCount():
+            return None
+        return self.net_connections[row][column]
+
+    def process(self, row: int)-> str:
+        return self.realData(row, 0)
+
+    def pid(self, row: int)-> int:
+        return self.realData(row, 1)
+
+    def protocol(self, row: int)-> tuple:
+        return self.realData(row, 2)
+
+    def localAddress(self, row: int):
+        return self.realData(row, 3)
+
+    def localPort(self, row: int)-> int:
+        return self.realData(row, 4)
+
+    def remoteAddress(self, row: int):
+        return self.realData(row, 5)
+
+    def remotePort(self, row: int) -> int:
+        return self.realData(row, 6)
+
+    def status(self, row: int) -> str:
+        return self.realData(row, 7)
+
     def countEndpoints(self):
         return self.rowCount()
 
