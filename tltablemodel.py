@@ -5,11 +5,8 @@ import struct
 from PySide2.QtCore import QAbstractTableModel, Qt, QModelIndex, Slot
 from PySide2.QtGui import QColor
 
-
-
-
-def isZeroIPAddress(addr: bytes, family: socket.AddressFamily)-> bool:
-    return addr == (bytes([0] * 4) if family != socket.AF_INET6 else bytes([0] * 16))
+ZERO_IPV4 = bytes([0] * 4)
+ZERO_IPV6 = bytes([0] * 16)
 
 def nameTransportProtocol(family: socket.AddressFamily, type: socket.SocketKind)-> str:
     """ Return str representation name transport protocol """
@@ -20,14 +17,6 @@ def nameTransportProtocol(family: socket.AddressFamily, type: socket.SocketKind)
     if family == socket.AF_INET6:
         ans += "V6"
     return ans
-
-def psutilAddrToIPAndPort(paddr, pfamily)-> tuple:      # -> tuple(bytes, int)
-    """ Correct result network address of psutil.net_connections() """
-    if type(paddr) != tuple:
-        ip, port = paddr.ip, paddr.port
-    else:
-        ip, port = ('::', 0) if pfamily == socket.AF_INET6 else ('0.0.0.0', 0)
-    return socket.inet_pton(pfamily, ip), port
 
 def ipToDomainName(addr: str)-> str:
     try:
@@ -41,20 +30,19 @@ def portToServiceName(port: int, type: socket.SocketKind)-> str:
     except OSError:
         return str(port)
 
-def statusToViewStr(val: str)-> str:
+def isZeroIPAddress(addr: bytes, family: socket.AddressFamily)-> bool:
+    return addr == (ZERO_IPV4 if family != socket.AF_INET6 else ZERO_IPV6)
+
+def statusToViewStr(val: str) -> str:
     return '' if val == "NONE" else val
 
-def generateCountValueInTable(tltablemodel, column, value):
-    """ creates a function that counts the number of rows
-        that have a specific value in a particular column """
-    def countValueInTable():
-        count = 0
-        for row in tltablemodel._TLTableModel__networkConnections():
-            if row[column] == value:
-                count += 1
-        return count
-    return countValueInTable
-
+def psutilAddrToIPAndPort(paddr, pfamily: socket.AddressFamily)-> tuple:      # -> tuple(bytes, int)
+    """ Correct result network address of psutil.net_connections() """
+    if type(paddr) != tuple:
+        ip, port = paddr.ip, paddr.port
+    else:
+        ip, port = ('::', 0) if pfamily == socket.AF_INET6 else ('0.0.0.0', 0)
+    return socket.inet_pton(pfamily, ip), port
 
 def psutilConnectionToList(connection: psutil._common.sconn)-> list:
     """ transfer psutil._common.sconn to list """
@@ -66,13 +54,11 @@ def psutilConnectionToList(connection: psutil._common.sconn)-> list:
     except psutil.NoSuchProcess:
         return []
 
-
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
     # All main headers in TLTableModel
     TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
                      "Remote Address", "Remote Port", "Status")
-    STATUS_VALUES = ("NONE", "ESTABLISHED", "LISTEN", "CLOSE_WAIT", "TIME_WAIT")
 
     def __init__(self):
         super().__init__()
@@ -83,12 +69,23 @@ class TLTableModel(QAbstractTableModel):
         self.sortColumn = 0         # sorted column number
         self.sortASC = False        # ascending sort?
         # create function for count the number of rows status == STATUS_VALUES[1]
-        self.countEstablished = generateCountValueInTable(self, 7, self.STATUS_VALUES[1])
-        self.countListen = generateCountValueInTable(self, 7, self.STATUS_VALUES[2])
-        self.countCloseWait = generateCountValueInTable(self, 7, self.STATUS_VALUES[3])
-        self.countTimeWait = generateCountValueInTable(self, 7, self.STATUS_VALUES[4])
+        self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
+        self.countListen = self.__generateCountValueInTable(7, "LISTEN")
+        self.countCloseWait = self.__generateCountValueInTable(7, "CLOSE_WAIT")
+        self.countTimeWait = self.__generateCountValueInTable(7, "TIME_WAIT")
         # load system data in self.net_connections
         self.updateData()
+
+    def __generateCountValueInTable(self, column, value):
+        """ This method creates a function-method for TLTableModel that counts the number of rows
+            that have a specific value in a particular column """
+        def countValueInTable():
+            count = 0
+            for row in self.net_connections:
+                if row[column] == value:
+                    count += 1
+            return count
+        return countValueInTable
 
     @Slot()
     def updateData(self):
@@ -230,32 +227,29 @@ class TLTableModel(QAbstractTableModel):
             return None
         return self.net_connections[row][column]
 
-    def process(self, row: int)-> str:
+    def countEndpoints(self):
+        return self.rowCount()
+
+    def process(self, row: int):
         return self.realData(row, 0)
 
-    def pid(self, row: int)-> int:
+    def pid(self, row: int):
         return self.realData(row, 1)
 
-    def protocol(self, row: int)-> tuple:
+    def protocol(self, row: int):
         return self.realData(row, 2)
 
     def localAddress(self, row: int):
         return self.realData(row, 3)
 
-    def localPort(self, row: int)-> int:
+    def localPort(self, row: int):
         return self.realData(row, 4)
 
     def remoteAddress(self, row: int):
         return self.realData(row, 5)
 
-    def remotePort(self, row: int) -> int:
+    def remotePort(self, row: int):
         return self.realData(row, 6)
 
-    def status(self, row: int) -> str:
+    def status(self, row: int):
         return self.realData(row, 7)
-
-    def countEndpoints(self):
-        return self.rowCount()
-
-    def __networkConnections(self):
-        return self.net_connections
