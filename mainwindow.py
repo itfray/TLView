@@ -1,14 +1,11 @@
 from PySide2.QtWidgets import QMainWindow, QMenu, QAction
 from ui_mainwindow import Ui_MainWindow
-from TLTableModel import TLTableModel
+from tltablemodel import TLTableModel
 from PySide2.QtCore import QTimer, Slot, Signal, QThread, Qt
 
 
 TIMER_VALUES = (1000, 3000, 5000)
 
-
-def slot_kill_process():
-    pass
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -33,7 +30,7 @@ class MainWindow(QMainWindow):
 
         # link tableview with context menu
         self.ui.tableView.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.ui.tableView.customContextMenuRequested.connect(self.callCustomContextMenu)
+        self.ui.tableView.customContextMenuRequested.connect(self.displayCustomContextMenu)
 
     @Slot()
     def updateInfoInDownToolBar(self):
@@ -45,9 +42,17 @@ class MainWindow(QMainWindow):
         self.ui.actionClose_Wait.setText(f'Close wait: {self.tableModel.countCloseWait()}')
 
     @Slot()
-    def callCustomContextMenu(self, pos):
+    def displayCustomContextMenu(self, pos):
+        """ Display contex menu on screen """
+        # create menu object
         menu = QMenu(self)
-        killAction = QAction("End process...", self)
-        menu.addAction(killAction)
-        killAction.triggered.connect(slot_kill_process)
+        # create action for process termination
+        terminateAction = QAction("End process...", self)
+        menu.addAction(terminateAction)
+        terminateAction.triggered.connect(self.slot_terminate_process)
+        # display context menu
         menu.popup(self.ui.tableView.viewport().mapToGlobal(pos))
+
+    @Slot()
+    def slot_terminate_process():
+        pass

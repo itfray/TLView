@@ -1,6 +1,7 @@
 from PySide2.QtWidgets import QTableView, QAbstractItemView
 
 
+# class TLTableView is view table for work with host's network connections on transport layer
 class TLTableView(QTableView):
     def __init__(self, parent = None):
         super().__init__(parent)

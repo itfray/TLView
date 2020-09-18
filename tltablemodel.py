@@ -7,6 +7,7 @@ from PySide2.QtGui import QColor
 
 
 def nameTransportProtocol(family: socket.AddressFamily, type: socket.SocketKind)-> str:
+    """ Return str representation name transport protocol """
     if type == socket.SOCK_STREAM:
         ans = "TCP"
     else:
@@ -16,9 +17,7 @@ def nameTransportProtocol(family: socket.AddressFamily, type: socket.SocketKind)
     return ans
 
 def psutilAddrToIPAndPort(paddr, pfamily)-> tuple:      # -> tuple(bytes, int)
-    """
-        Correct result network address of psutil.net_connections()
-    """
+    """ Correct result network address of psutil.net_connections() """
     if type(paddr) != tuple:
         ip, port = paddr.ip, paddr.port
     else:
@@ -43,10 +42,8 @@ def statusToViewStr(val: str)-> str:
     return '' if val == "NONE" else val
 
 def generateCountValueInTable(tltablemodel, column, value):
-    """
-        creates a function that counts the number of rows
-        that have a specific value in a particular column
-    """
+    """ creates a function that counts the number of rows
+        that have a specific value in a particular column """
     def countValueInTable():
         count = 0
         for row in tltablemodel._TLTableModel__networkConnections():
@@ -55,32 +52,32 @@ def generateCountValueInTable(tltablemodel, column, value):
         return count
     return countValueInTable
 
-# All main headers in TLTableModel
-TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
-                 "Remote Address", "Remote Port", "State")
 
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
+    # All main headers in TLTableModel
+    TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
+                     "Remote Address", "Remote Port", "Status")
+    STATUS_VALUES = ("NONE", "ESTABLISHED", "LISTEN", "CLOSE_WAIT", "TIME_WAIT")
+
     def __init__(self):
         super().__init__()
         self.net_connections = []   # main model table
         self.sortColumn = 0         # sorted column number
         self.sortASC = False        # ascending sort?
-        # create function for count the number of rows status == "ESTABLISHED"
-        self.countEstablished = generateCountValueInTable(self, 7, "ESTABLISHED")
-        self.countListen = generateCountValueInTable(self, 7, "LISTEN")
-        self.countCloseWait = generateCountValueInTable(self, 7, "CLOSE_WAIT")
-        self.countTimeWait = generateCountValueInTable(self, 7, "TIME_WAIT")
+        # create function for count the number of rows status == STATUS_VALUES[1]
+        self.countEstablished = generateCountValueInTable(self, 7, self.STATUS_VALUES[1])
+        self.countListen = generateCountValueInTable(self, 7, self.STATUS_VALUES[2])
+        self.countCloseWait = generateCountValueInTable(self, 7, self.STATUS_VALUES[3])
+        self.countTimeWait = generateCountValueInTable(self, 7, self.STATUS_VALUES[4])
         # load system data in self.net_connections
         self.updateData()
 
 
     @Slot()
     def updateData(self):
-        """
-            load system data about all network connections on taransport layer and
-            create data table
-        """
+        """ load system data about all network connections on taransport layer and
+            create data table """
         # notify the view of the begin of a radical change in data
         self.beginResetModel()
         self.net_connections = []
@@ -123,20 +120,16 @@ class TLTableModel(QAbstractTableModel):
         return len(self.net_connections[0])
 
     def headerData(self, section, orientation, role):
-        """
-            return every column header
-        """
+        """ return every column header """
         if role != Qt.DisplayRole:
             return None
         if orientation == Qt.Horizontal:
-            return TABLE_HEADERS[section]
+            return self.TABLE_HEADERS[section]
         else:
             return f'{section}'
 
     def data(self, index, role=Qt.DisplayRole):
-        """
-            need for get data of model
-        """
+        """ need for get data of model """
         column = index.column()
         row = index.row()
         if role == Qt.DisplayRole:
