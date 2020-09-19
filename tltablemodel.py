@@ -79,23 +79,19 @@ class TLTableModel(QAbstractTableModel):
         self.created_rows = tables_difference(net_connections, self.net_connections, *TLTableModel.UNIQUE_KEY)
         self.updated_rows = updated_rows(self.net_connections, net_connections, TLTableModel.UNIQUE_KEY, (7,))
         self.net_connections = net_connections
-        # remove from cache domain names deleted connections
-        for row in self.deleted_rows:
-            self.cacheDomainNames.remove_refs(row[3], row[5])
         # append in cache domain names created connections
-        # for row in self.created_rows:
-        #     self.cacheDomainNames.append_refs((row[3], row[2][0]), (row[5], row[2][0]))
-        self.cacheDomainNames.append_refs(*[(row[3], row[2][0]) for row in self.created_rows],
-                                          *[(row[5], row[2][0]) for row in self.created_rows])
+        self.cacheDomainNames.append(
+            *[(row[3], row[2][0]) for row in self.net_connections if row[3] not in self.cacheDomainNames],
+            *[(row[5], row[2][0]) for row in self.net_connections if row[5] not in self.cacheDomainNames])
         self.sortData()
         # notify the view of the end of a radical change in data
         self.endResetModel()
-        print(f'deleted = {self.deleted_rows}')
-        print(f'created = {self.created_rows}')
-        print(f'updated = {self.updated_rows}')
-        print(f'cache = {self.cacheDomainNames}')
-        print(f'len cache: {len(self.cacheDomainNames)}')
-        print()
+        # print(f'deleted = {self.deleted_rows}')
+        # print(f'created = {self.created_rows}')
+        # print(f'updated = {self.updated_rows}')
+        # print(f'cache = {self.cacheDomainNames}')
+        # print(f'len cache: {len(self.cacheDomainNames)}')
+        # print()
 
     def unique_key(self, row: int)-> tuple:
         # a tuple of values ​​that uniquely identifies a row in a table
