@@ -81,12 +81,12 @@ class TLTableModel(QAbstractTableModel):
         self.net_connections = net_connections
         # remove from cache domain names deleted connections
         for row in self.deleted_rows:
-            self.cacheDomainNames.remove_ref(row[3])
-            self.cacheDomainNames.remove_ref(row[5])
+            self.cacheDomainNames.remove_refs(row[3], row[5])
         # append in cache domain names created connections
-        for row in self.created_rows:
-            self.cacheDomainNames.apend_ref(row[3], row[2][0])
-            self.cacheDomainNames.apend_ref(row[5], row[2][0])
+        # for row in self.created_rows:
+        #     self.cacheDomainNames.append_refs((row[3], row[2][0]), (row[5], row[2][0]))
+        self.cacheDomainNames.append_refs(*[(row[3], row[2][0]) for row in self.created_rows],
+                                          *[(row[5], row[2][0]) for row in self.created_rows])
         self.sortData()
         # notify the view of the end of a radical change in data
         self.endResetModel()
