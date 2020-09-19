@@ -4,6 +4,7 @@ import socket
 import struct
 from PySide2.QtCore import QAbstractTableModel, Qt, QModelIndex, Slot
 from PySide2.QtGui import QColor
+from work_with_list import lists_are_diff, tables_difference, updated_rows
 
 ZERO_IPV4 = bytes([0] * 4)
 ZERO_IPV6 = bytes([0] * 16)
@@ -54,6 +55,7 @@ def psutilConnectionToList(connection: psutil._common.sconn)-> list:
     except psutil.NoSuchProcess:
         return []
 
+
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
     # All main headers in TLTableModel
@@ -65,7 +67,7 @@ class TLTableModel(QAbstractTableModel):
         self.net_connections = []   # main model table
         self.domainNameMode = False # return numeric address or domain name?
         # self.cacheDomainNames = {}
-        self.serviceNameMode = True # return numeric port  or service name?
+        self.serviceNameMode = True # return numeric port or service name?
         self.sortColumn = 0         # sorted column number
         self.sortASC = False        # ascending sort?
         # create function for count the number of rows status == STATUS_VALUES[1]
@@ -100,44 +102,9 @@ class TLTableModel(QAbstractTableModel):
             if len(row) > 0:
                 net_connections.append(row)
 
-        # def listsIsDifferent(list1, list2, *indexes):
-        #     """ The function checks the differences of lists at the specified indices. """
-        #     if len(list1) != len(list2):
-        #         raise ValueError("Lists should have same length!!!")
-        #     count = 0
-        #     for index in indexes:
-        #         if list1[index] != list2[index]:
-        #             count += 1
-        #     return count > 0
-
-        # def tablesDifference(table1: list, table2: list, *columns)-> list:
-        #     """ The function searches for rows of the first table that are not in the second table. """
-        #     answer = []
-        #     for i in range(len(table1)):
-        #         count = 0
-        #         for j in range(len(table2)):
-        #             if listsIsDifferent(table1[i], table2[j], *columns):
-        #                 count += 1
-        #         if count == len(table2):
-        #             answer.append(table1[i])
-        #     return answer
-
-        # def updatedRows(old_table: list, new_table: list, indexes_id: tuple, indexes_cmp: tuple)-> list:
-        #     """ The function сhecks the rows of the old table that are updated in the new table.
-        #         * old_table - old table; new_table - new table;
-        #           indexes_id - indexes identifying a row in a table;
-        #           indexes_cmp - data indexes in which to compare. These are the indices of the elements
-        #           for which the data could be updated;"""
-        #     answer = []
-        #     for i in range(len(old_table)):
-        #         for j in range(len(new_table)):
-        #             if not listsIsDifferent(old_table[i], new_table[j], *indexes_id) and \
-        #                     listsIsDifferent(old_table[i], new_table[j], *indexes_cmp):
-        #                 answer.append(old_table[i])
-        #
-        # deleted = tablesDifference(self.net_connections, net_connections, 2, 3, 4, 5, 6)
-        # created = tablesDifference(net_connections, self.net_connections, 2, 3, 4, 5, 6)
-        # updated = updatedRows(self.net_connections, net_connections, (1, 2, 3, 4, 5, 6), (7,))
+        # deleted = tables_difference(self.net_connections, net_connections, 2, 3, 4, 5, 6)
+        # created = tables_difference(net_connections, self.net_connections, 2, 3, 4, 5, 6)
+        # updated = updated_rows(self.net_connections, net_connections, (1, 2, 3, 4, 5, 6), (7,))
 
         self.net_connections = net_connections
         self.sortData()
