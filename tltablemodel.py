@@ -7,6 +7,65 @@ from work_with_list import lists_are_diff, tables_difference, updated_rows
 from work_with_netdata import (nameTransportProtocol, ipToDomainName, portToServiceName,
                                isZeroIPAddress, psutilAddrToIPAndPort)
 
+class CacheDomainNames:
+    # Dictionary that stores domain names
+    class DNRecord:
+        # Data unit for CacheDomainNames that have simple structure
+        def __init__(self, domain_name: str):
+            self.domain_name = domain_name
+            self.__count_refs = 0                   # the number of objects referring to this domain name
+        def inc_refs(self):
+            self.__count_refs += 1
+        def dec_refs(self):
+            if self.__count_refs > 0: self.__count_refs -= 1
+        def count_refs(self)-> int:
+            return self.__count_refs
+        def zero_refs(self):
+            self.__count_refs = 0
+        def __str__(self):
+            return "[" + str(self.domain_name) + ", " + str(self.__count_refs) + "]"
+        def __repr__(self):
+            return self.__str__()
+
+    def __init__(self):
+        self.memory = {}
+
+    def apend_ref(self, ip_addr: bytes, ip_family: socket.AddressFamily)-> None:
+        if ip_addr not in self.memory:
+            self.memory[ip_addr] = self.DNRecord(ipToDomainName(socket.inet_ntop(ip_family, ip_addr)))
+            print(f'+ {ip_addr}: {self.memory[ip_addr]}')
+        self.memory[ip_addr].inc_refs()
+
+    def remove_ref(self, ip_addr: bytes)-> None:
+        dnrecord = self.memory.get(ip_addr, None)
+        if dnrecord == None:
+            return
+        dnrecord.dec_refs()
+        if dnrecord.count_refs() == 0:
+            print(f'- {ip_addr}: {dnrecord}')
+            self.memory.pop(ip_addr, None)
+
+    def domainName(self, ip_addr: bytes, default = None)-> str:
+        record = self.memory.get(ip_addr, None)
+        return record.domain_name if record else default
+
+    def apend_refs(self, *addrs)-> None:       # addrs: tuple((bytes, socket.AddressFamily), ...)
+        for addr in addrs:
+            self.apend_ref(addr[0], addr[1])
+
+    def remove_refs(self, *addrs)-> None:      # addrs: tuple(bytes, ...)
+        for addr in addrs:
+            self.remove_ref(addr)
+
+    def __len__(self):
+        return len(self.memory)
+
+    def __str__(self):
+        return self.memory.__str__()
+
+    def __repr__(self):
+        return self.memory.__repr__()
+
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
     UNIQUE_KEY = tuple(i for i in range(2, 7))         # column numbers that uniquely identify a row in a table
@@ -16,13 +75,13 @@ class TLTableModel(QAbstractTableModel):
 
     def __init__(self):
         super().__init__()
-        self.net_connections = []               # main model table
-        self.domainNameMode = True              # return numeric address or domain name?
-        self.cacheDomainNames = {}
-        self.serviceNameMode = True             # return numeric port or service name?
-        self.sortColumn = 0                     # sorted column number
-        self.sortASC = False                    # ascending sort?
-        self.deleted_rows = self.created_rows = self.updated_rows = []
+        self.net_connections = []                   # main model table
+        self.domainNameMode = True                  # return numeric address or domain name?
+        self.cacheDomainNames = CacheDomainNames()
+        self.serviceNameMode = True                 # return numeric port or service name?
+        self.sortColumn = 0                         # sorted column number
+        self.sortASC = False                        # ascending sort?
+        self.deleted_rows = self.created_rows = self.updated_rows = []              # since last data update
         # create function for count the number of rows status == "ESTABLISHED"
         self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
         self.countListen = self.__generateCountValueInTable(7, "LISTEN")
@@ -75,25 +134,12 @@ class TLTableModel(QAbstractTableModel):
         self.net_connections = net_connections
         # remove from cache domain names deleted connections
         for row in self.deleted_rows:
-            self.cacheDomainNames[row[3]][1] -= 1
-            self.cacheDomainNames[row[5]][1] -= 1
-            if self.cacheDomainNames[row[3]][1] == 0:
-                print(f'- {row[3]}: {self.cacheDomainNames.get(row[3], None)}')
-                self.cacheDomainNames.pop(row[3], None)
-            if self.cacheDomainNames[row[5]][1] == 0:
-                print(f'- {row[5]}: {self.cacheDomainNames.get(row[5], None)}')
-                self.cacheDomainNames.pop(row[5], None)
+            self.cacheDomainNames.remove_ref(row[3])
+            self.cacheDomainNames.remove_ref(row[5])
         # append in cache domain names created connections
         for row in self.created_rows:
-            if row[3] not in self.cacheDomainNames:
-                self.cacheDomainNames[row[3]] = [ipToDomainName(socket.inet_ntop(row[2][0], row[3])), 0]
-                print(f'+ {row[3]}: {self.cacheDomainNames.get(row[3], None)}')
-            self.cacheDomainNames[row[3]][1] += 1
-            if row[5] not in self.cacheDomainNames:
-                self.cacheDomainNames[row[5]] = [ipToDomainName(socket.inet_ntop(row[2][0], row[5])), 0]
-                print(f'+ {row[5]}: {self.cacheDomainNames.get(row[5], None)}')
-            self.cacheDomainNames[row[5]][1] += 1
-
+            self.cacheDomainNames.apend_ref(row[3], row[2][0])
+            self.cacheDomainNames.apend_ref(row[5], row[2][0])
         self.sortData()
         # notify the view of the end of a radical change in data
         self.endResetModel()
@@ -165,7 +211,7 @@ class TLTableModel(QAbstractTableModel):
                             return '*'
                     addr = socket.inet_ntop(self.net_connections[row][2][0], self.net_connections[row][column])
                     if self.domainNameMode:
-                        return self.cacheDomainNames.get(self.net_connections[row][column], ('',))[0]
+                        return self.cacheDomainNames.domainName(self.net_connections[row][column], addr)
                     return addr
                 elif column == 4 or column == 6:
                     if column == 6:
