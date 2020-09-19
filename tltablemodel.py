@@ -5,66 +5,7 @@ from PySide2.QtGui import QColor
 from operator import itemgetter
 from work_with_list import lists_are_diff, tables_difference, updated_rows
 from work_with_netdata import (nameTransportProtocol, ipToDomainName, portToServiceName,
-                               isZeroIPAddress, psutilAddrToIPAndPort)
-
-class CacheDomainNames:
-    # Dictionary that stores domain names
-    class DNRecord:
-        # Data unit for CacheDomainNames that have simple structure
-        def __init__(self, domain_name: str):
-            self.domain_name = domain_name
-            self.__count_refs = 0                   # the number of objects referring to this domain name
-        def inc_refs(self):
-            self.__count_refs += 1
-        def dec_refs(self):
-            if self.__count_refs > 0: self.__count_refs -= 1
-        def count_refs(self)-> int:
-            return self.__count_refs
-        def zero_refs(self):
-            self.__count_refs = 0
-        def __str__(self):
-            return "[" + str(self.domain_name) + ", " + str(self.__count_refs) + "]"
-        def __repr__(self):
-            return self.__str__()
-
-    def __init__(self):
-        self.memory = {}
-
-    def apend_ref(self, ip_addr: bytes, ip_family: socket.AddressFamily)-> None:
-        if ip_addr not in self.memory:
-            self.memory[ip_addr] = self.DNRecord(ipToDomainName(socket.inet_ntop(ip_family, ip_addr)))
-            print(f'+ {ip_addr}: {self.memory[ip_addr]}')
-        self.memory[ip_addr].inc_refs()
-
-    def remove_ref(self, ip_addr: bytes)-> None:
-        dnrecord = self.memory.get(ip_addr, None)
-        if dnrecord == None:
-            return
-        dnrecord.dec_refs()
-        if dnrecord.count_refs() == 0:
-            print(f'- {ip_addr}: {dnrecord}')
-            self.memory.pop(ip_addr, None)
-
-    def domainName(self, ip_addr: bytes, default = None)-> str:
-        record = self.memory.get(ip_addr, None)
-        return record.domain_name if record else default
-
-    def apend_refs(self, *addrs)-> None:       # addrs: tuple((bytes, socket.AddressFamily), ...)
-        for addr in addrs:
-            self.apend_ref(addr[0], addr[1])
-
-    def remove_refs(self, *addrs)-> None:      # addrs: tuple(bytes, ...)
-        for addr in addrs:
-            self.remove_ref(addr)
-
-    def __len__(self):
-        return len(self.memory)
-
-    def __str__(self):
-        return self.memory.__str__()
-
-    def __repr__(self):
-        return self.memory.__repr__()
+                               isZeroIPAddress, psutilAddrToIPAndPort, CacheDomainNames)
 
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
@@ -113,21 +54,27 @@ class TLTableModel(QAbstractTableModel):
             return []
 
     @staticmethod
-    def statusToViewStr(val: str) -> str:
-        return '' if val == "NONE" else val
-
-    @Slot()
-    def updateData(self):
+    def loadDataNetConnections()-> list:
         """ load system data about all network connections on taransport layer and
             create data table """
-        # notify the view of the begin of a radical change in data
-        self.beginResetModel()
-        # create data table
         net_connections = []
         for connection in psutil.net_connections():
             row = TLTableModel.psutilConnectionToList(connection)
             if len(row) > 0:
                 net_connections.append(row)
+        return net_connections
+
+
+    @staticmethod
+    def statusToViewStr(val: str) -> str:
+        return '' if val == "NONE" else val
+
+    @Slot()
+    def updateData(self):
+        # notify the view of the begin of a radical change in data
+        self.beginResetModel()
+        # load system data about all network connections
+        net_connections = TLTableModel.loadDataNetConnections()
         self.deleted_rows = tables_difference(self.net_connections, net_connections, *TLTableModel.UNIQUE_KEY)
         self.created_rows = tables_difference(net_connections, self.net_connections, *TLTableModel.UNIQUE_KEY)
         self.updated_rows = updated_rows(self.net_connections, net_connections, TLTableModel.UNIQUE_KEY, (7,))
@@ -211,7 +158,7 @@ class TLTableModel(QAbstractTableModel):
                             return '*'
                     addr = socket.inet_ntop(self.net_connections[row][2][0], self.net_connections[row][column])
                     if self.domainNameMode:
-                        return self.cacheDomainNames.domainName(self.net_connections[row][column], addr)
+                        return self.cacheDomainNames.domain_name(self.net_connections[row][column], addr)
                     return addr
                 elif column == 4 or column == 6:
                     if column == 6:
