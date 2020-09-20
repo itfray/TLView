@@ -16,12 +16,12 @@ class TLTableModel(QAbstractTableModel):
 
     def __init__(self):
         super().__init__()
-        self.net_connections = []                   # main model table
-        self.domainNameMode = True                  # return numeric address or domain name?
-        self.cacheDomainNames = CacheDomainNames()
-        self.serviceNameMode = True                 # return numeric port or service name?
-        self.sortColumn = 0                         # sorted column number
-        self.sortASC = False                        # ascending sort?
+        self.net_connections = []                       # main model table
+        self.domainNameMode = True                      # return numeric address or domain name?
+        self.cacheDomainNames = CacheDomainNames()      # for solved ip adresses to domain names for display in table
+        self.serviceNameMode = True                     # return numeric port or service name?
+        self.sortColumn = 0                             # sorted column number
+        self.sortASC = False                            # ascending sort?
         self.deleted_rows = self.created_rows = self.updated_rows = []              # since last data update
         # create function for count the number of rows status == "ESTABLISHED"
         self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
@@ -63,11 +63,6 @@ class TLTableModel(QAbstractTableModel):
             if len(row) > 0:
                 net_connections.append(row)
         return net_connections
-
-
-    @staticmethod
-    def statusToViewStr(val: str) -> str:
-        return '' if val == "NONE" else val
 
     @Slot()
     def updateData(self):
@@ -143,30 +138,22 @@ class TLTableModel(QAbstractTableModel):
         column = index.column()
         row = index.row()
         if role == Qt.DisplayRole:
-            if row >= 0 and row < self.rowCount() \
-                    and column >= 0 and column < self.columnCount():
-                if column == 2:
-                    return nameTransportProtocol(*self.net_connections[row][column])
-                elif column == 3 or column == 5:
-                    if column == 5:
-                        if isZeroIPAddress(self.net_connections[row][column], self.net_connections[row][2][0]) and \
-                                self.net_connections[row][2][1] == socket.SOCK_DGRAM:
-                            return '*'
-                    addr = socket.inet_ntop(self.net_connections[row][2][0], self.net_connections[row][column])
-                    if self.domainNameMode:
-                        return self.cacheDomainNames.domain_name(self.net_connections[row][column], addr)
-                    return addr
-                elif column == 4 or column == 6:
-                    if column == 6:
-                        if self.net_connections[row][column] == 0 and \
-                                self.net_connections[row][2][1] == socket.SOCK_DGRAM:
-                            return '*'
-                    if self.serviceNameMode:
-                        return portToServiceName(self.net_connections[row][column], self.net_connections[row][2][1])
-                    return str(self.net_connections[row][column])
-                elif column == 7:
-                    return TLTableModel.statusToViewStr(self.net_connections[row][column])
-                return str(self.net_connections[row][column])
+            if column == 0:
+                return self.processViewStr(row)
+            elif column == 1:
+                return self.pidViewStr(row)
+            elif column == 2:
+                return self.protocolViewStr(row)
+            elif column == 3:
+                return self.localAddressViewStr(row)
+            elif column == 4:
+                return self.localPortViewStr(row)
+            elif column == 5:
+                return self.remoteAddressViewStr(row)
+            elif column == 6:
+                return self.remotePortViewStr(row)
+            elif column == 7:
+                return self.statusViewStr(row)
         elif role == Qt.BackgroundRole:
             return QColor(Qt.white)
         elif role == Qt.TextAlignmentRole:
@@ -183,26 +170,77 @@ class TLTableModel(QAbstractTableModel):
     def countEndpoints(self):
         return self.rowCount()
 
-    def process(self, row: int):
+    def process(self, row: int) -> str:
         return self.realData(row, 0)
 
-    def pid(self, row: int):
+    def pid(self, row: int) -> int:
         return self.realData(row, 1)
 
-    def protocol(self, row: int):
+    def protocol(self, row: int) -> tuple:
         return self.realData(row, 2)
 
-    def localAddress(self, row: int):
+    def localAddress(self, row: int) -> bytes:
         return self.realData(row, 3)
 
-    def localPort(self, row: int):
+    def localDomainName(self, row: int) -> str:
+        return self.cacheDomainNames.domain_name(self.realData(row, 3),
+                                                 socket.inet_ntop(sself.realData(row, 2)[0], self.realData(row, 3)))
+
+    def localPort(self, row: int) -> int:
         return self.realData(row, 4)
 
-    def remoteAddress(self, row: int):
+    def localServiceName(self, row: int) -> str:
+        return portToServiceName(self.realData(row, 4), self.realData(row, 2)[1])
+
+    def remoteAddress(self, row: int) -> bytes:
         return self.realData(row, 5)
 
-    def remotePort(self, row: int):
+    def remoteDomainName(self, row: int) -> str:
+        return self.cacheDomainNames.domain_name(self.realData(row, 5),
+                                                 socket.inet_ntop(sself.realData(row, 2)[0], self.realData(row, 5)))
+
+    def remotePort(self, row: int) -> int:
         return self.realData(row, 6)
 
-    def status(self, row: int):
+    def remoteServiceName(self, row: int) -> str:
+        return portToServiceName(self.realData(row, 6), self.realData(row, 2)[1])
+
+    def status(self, row: int)-> str:
         return self.realData(row, 7)
+
+    def processViewStr(self, row: int)-> str:
+        return self.process(row)
+
+    def pidViewStr(self, row: int)-> str:
+        return str(self.pid(row))
+
+    def protocolViewStr(self, row: int)-> str:
+        return nameTransportProtocol(*self.protocol(row))
+
+    def localAddressViewStr(self, row: int)-> str:
+        local_addr = self.localAddress(row)
+        addr = socket.inet_ntop(self.protocol(row)[0], local_addr)
+        return self.cacheDomainNames.domain_name(local_addr, addr) if self.domainNameMode else addr
+
+    def localPortViewStr(self, row: int)-> str:
+        port = self.localPort(row)
+        return portToServiceName(port, self.protocol(row)[1]) if self.serviceNameMode else str(port)
+
+    def remoteAddressViewStr(self, row: int) -> str:
+        remote_addr = self.remoteAddress(row)
+        protocol = self.protocol(row)
+        if isZeroIPAddress(remote_addr, protocol[0]) and protocol[1] == socket.SOCK_DGRAM:
+            return '*'
+        addr = socket.inet_ntop(protocol[0], remote_addr)
+        return self.cacheDomainNames.domain_name(remote_addr, addr) if self.domainNameMode else addr
+
+    def remotePortViewStr(self, row: int)-> str:
+        port = self.remotePort(row)
+        ptype = self.protocol(row)[1]
+        if port == 0 and ptype == socket.SOCK_DGRAM:
+            return '*'
+        return portToServiceName(port, ptype) if self.serviceNameMode else str(port)
+
+    def statusViewStr(self, row: int)-> str:
+        status = self.status(row)
+        return '' if status == "NONE" else status
