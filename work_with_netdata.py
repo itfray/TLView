@@ -1,7 +1,8 @@
 import socket
 import psutil
-import threading
 import time
+import multi_thread
+
 
 ZERO_IPV4 = bytes([0] * 4)
 ZERO_IPV6 = bytes([0] * 16)
@@ -41,7 +42,7 @@ def psutilAddrToIPAndPort(paddr, pfamily: socket.AddressFamily)-> tuple:      # 
     return socket.inet_pton(pfamily, ip), port
 
 
-class CacheDomainNames:
+class CacheDomainNames(multi_thread.MultiThread):
     """ Class for working with domain names cache.
         It is a more optimal solution in contrast to simple
         functions for calculating domain names as needed. """
@@ -69,61 +70,48 @@ class CacheDomainNames:
 
     def __init__(self, lifetime_record = LIFETIME_DNRECORD):
         """ Initialization memory and setting basic configurations"""
+        super().__init__()
         self.__memory = {}                                      # dictionary that stores DNRecords
         self.__lifetime_record = lifetime_record                # the number of seconds the entry is valid
-        cpu_count = psutil.cpu_count() - 1
-        self.__MAX_COUNT_THREADS = cpu_count if cpu_count else 1
-        self.__threads = []
 
     def domain_name(self, ip_addr: bytes, default = None)-> str:
         """ Return domain name of memory """
         record = self.__memory.get(ip_addr, None)
         return record.domain_name if record else default
 
-    def __append(self, ip_addr: bytes, ip_family: socket.AddressFamily)-> None:
-        """ function of adding one record to the cache """
-        if ip_addr not in self.__memory:
-            # resolve ip address into domain name and write to cache
-            self.__memory[ip_addr] = self.DNRecord(ipToDomainName(socket.inet_ntop(ip_family, ip_addr)),
-                                                                                    self.__lifetime_record)
-
-    def __appends(self, *addrs)-> None:                # addrs: tuple((bytes, socket.AddressFamily), ...)
-        """ function of adding multiple records to cache """
+    def __append(self, *addrs)-> None:
+        # addrs: tuple(tuple(bytes, socket.AddressFamily), ...)
+        # addr: tuple(bytes, socket.AddressFamily)
+        """ function of adding multiple records to cache
+            * addrs - is tuple of arguments.
+              One addr - is tuple where:
+                     addr[0] - is bytes ip address,
+                     addr[1] - is family ip address """
         for addr in addrs:
-            self.__append(addr[0], addr[1])
+            if addr[0] not in self.__memory:
+                # resolve ip address into domain name and write to cache
+                self.__memory[addr[0]] = \
+                    self.DNRecord(ipToDomainName(socket.inet_ntop(addr[1], addr[0])), self.__lifetime_record)
 
-    def append(self, *addrs)-> None:                 # addrs: tuple((bytes, socket.AddressFamily), ...)
+    def append(self, *addrs)-> None:
+        # addrs: tuple(tuple(bytes, socket.AddressFamily), ...)
+        # addr: tuple(bytes, socket.AddressFamily)
         """ function of adding multiple records to cache
             and works in multi-threaded mode"""
-        self.__remove_dead_threads()
-        self.__remove_dead_domain_names()
+        self.remove_dead_threads()
+        self.remove_dead_domain_names()
         # filter out addresses that are already being examined by other threads
-        addrs = self.__addrs_not_in_thread_works(*addrs)
+        addrs = self.find_args_not_in_threads(self.__append, *addrs)
         # try run function 'append' in new thread
-        running = self.__run_in_new_thread(self.__appends, *addrs)
-        if not running:
-            self.__appends(*addrs)
+        if not self.run_thread(self.__append, *addrs):
+            self.__append(*addrs)
 
-    def __addrs_not_in_thread_works(self, *addrs):
-        """ The function looks for addresses that
-            are not currently calculated by other threads."""
-        need_addrs = []         # addresses not involved in settlement
-        for addr in addrs:
-            flag = True
-            for thread in self.__threads:
-                if addr in thread.work:
-                    flag = False
-                    break
-            if flag:
-                need_addrs.append(addr)
-        return need_addrs
-
-    def __remove_dead_domain_names(self):
+    def remove_dead_domain_names(self):
         """ Removes all domain names
             from the cache that have expired """
         keys = [key for key in self.__memory if not self.__memory[key].is_alive()]
         for key in keys:
-            dnrecord = self.__memory.pop(key, None)
+            self.__memory.pop(key, None)
 
     def clear(self):
         """ Removes all domain names from the cache """
@@ -149,23 +137,3 @@ class CacheDomainNames:
 
     def __repr__(self):
         return self.__memory.__repr__()
-
-    def __remove_dead_threads(self):
-        """ Removes all thread that finished work """
-        for thread in self.__threads:
-            if not thread.is_alive():
-                self.__threads.remove(thread)
-
-    def __run_in_new_thread(self, func, *args)-> bool:
-        """ Runs a function on a new thread.
-            return:
-               False - cannot be started since the number
-                       of threads is equal to the number of logical cores
-               True - function run in new thread"""
-        if len(self.__threads) < self.__MAX_COUNT_THREADS:
-            thread = threading.Thread(target=func, args=args, daemon=True)
-            thread.work = args
-            self.__threads.append(thread)
-            thread.start()
-            return True
-        return False
