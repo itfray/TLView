@@ -19,6 +19,9 @@ class MainWindow(QMainWindow):
         self.ui.tableView.setModel(self.tableModel)
         self.tableModel.modelAboutToBeReset.connect(self.ui.tableView.storeSelectedRowNum)
         self.tableModel.modelReset.connect(self.ui.tableView.restoreSelectedRowNum)
+        # link view headers with model sorting
+        header = self.ui.tableView.horizontalHeader()
+        header.sectionClicked.connect(self.tableModel.sortDataByColumn)
 
         self.updateInfoInDownToolBar()
 

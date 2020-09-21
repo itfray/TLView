@@ -13,6 +13,8 @@ class TLTableModel(QAbstractTableModel):
     # All main headers in TLTableModel
     TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
                      "Remote Address", "Remote Port", "Status")
+    SIGN_ASC = '++'
+    SIGN_DESC = '--'
 
     def __init__(self):
         super().__init__()
@@ -21,7 +23,7 @@ class TLTableModel(QAbstractTableModel):
         self.cacheDomainNames = CacheDomainNames()      # for solved ip adresses to domain names for display in table
         self.serviceNameMode = True                     # return numeric port or service name?
         self.sortColumn = 0                             # sorted column number
-        self.sortASC = False                            # ascending sort?
+        self.sortASC = True                             # ascending sort?
         self.deleted_rows = self.created_rows = self.updated_rows = []              # since last data update
         # create function for count the number of rows status == "ESTABLISHED"
         self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
@@ -103,7 +105,18 @@ class TLTableModel(QAbstractTableModel):
     @Slot()
     def sortData(self):
         """ sorts model data """
-        self.net_connections = sorted(self.net_connections, key=itemgetter(self.sortColumn), reverse=self.sortASC)
+        self.net_connections = sorted(self.net_connections, key=itemgetter(self.sortColumn), reverse=not self.sortASC)
+
+    @Slot()
+    def sortDataByColumn(self, column: int):
+        """ set sorts model data by column """
+        if column == self.sortColumn:
+            self.sortASC = not self.sortASC
+        else:
+            self.sortASC = True
+            self.sortColumn = column
+        # self.sortData()               # If you need instant results. Сreates additional load
+
 
     def setSortColumn(self, column: int):
         """ set sorted column number"""
@@ -129,7 +142,12 @@ class TLTableModel(QAbstractTableModel):
         if role != Qt.DisplayRole:
             return None
         if orientation == Qt.Horizontal:
-            return self.TABLE_HEADERS[section]
+            header = self.TABLE_HEADERS[section]
+            # mark the header by which the data is sorted
+            if section == self.sortColumn:
+                # + sort ascending; - sort descending;
+                header += '  ' + (self.SIGN_ASC if self.sortASC else self.SIGN_DESC)
+            return header
         else:
             return f'{section}'
 
