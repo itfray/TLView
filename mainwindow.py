@@ -65,27 +65,21 @@ class MainWindow(QMainWindow):
             return
         self.timer.stop()                                       # stop updating data on the window
         selected_row = selected_inds[0].row()
-        process_name = self.tableModel.process(selected_row)    # get process name selected process
         # create message box for confirmation process termination
-        ans = QMessageBox.warning(self, "Process termination", f"Terminate the process <{process_name}>?",
+        ans = QMessageBox.warning(self, "Process termination",
+                                  f"Terminate the process <{self.tableModel.process(selected_row)}>?",
                                   QMessageBox.Yes, QMessageBox.No)
-        if ans == QMessageBox.No:
-            self.timer.start()
-            return
-        flag_error = False                              # flag_error == True if there were exceptions
-        pid = int(self.tableModel.pid(selected_row))    # get pid selected process
-        try:
-            process = psutil.Process(pid)               # get process handle
-            process.terminate()
-        except psutil.NoSuchProcess:
-            QMessageBox.information(self, "Process termination", "The process has already been terminated!!!",
-                                    QMessageBox.Ok)
-            flag_error = True
-        except psutil.AccessDenied:
-            QMessageBox.critical(self, "Process termination", "Access is denied. You need administrator rights!!!",
-                                    QMessageBox.Ok)
-            flag_error = True
-        if not flag_error:
-            QMessageBox.information(self, "Process termination", "The process was completed successfully!!!",
-                                 QMessageBox.Ok)
+        if ans == QMessageBox.Yes:
+            pid = int(self.tableModel.pid(selected_row))    # get pid selected process
+            try:
+                process = psutil.Process(pid)               # get process handle
+                process.terminate()
+                QMessageBox.information(self, "Process termination", "The process was completed successfully!!!",
+                                        QMessageBox.Ok)
+            except psutil.NoSuchProcess:
+                QMessageBox.information(self, "Process termination", "The process has already been terminated!!!",
+                                        QMessageBox.Ok)
+            except psutil.AccessDenied:
+                QMessageBox.critical(self, "Process termination", "Access is denied. You need administrator rights!!!",
+                                        QMessageBox.Ok)
         self.timer.start()
