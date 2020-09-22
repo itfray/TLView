@@ -7,6 +7,7 @@ from work_with_list import lists_are_diff, tables_difference, updated_rows, get_
 from work_with_netdata import (nameTransportProtocol, ipToDomainName, portToServiceName,
                                isZeroIPAddress, psutilAddrToIPAndPort, CacheDomainNames)
 
+
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
     MAX_PK = 2**64
@@ -16,9 +17,12 @@ class TLTableModel(QAbstractTableModel):
                      "Remote Address", "Remote Port", "Status")
     SIGN_ASC = '⯅'
     SIGN_DESC = '⯆'
+    DEFAULT_FILENAME = "net_connections"
+    DEFAULT_EXTANSIONS = ('csv', 'txt')
 
     def __init__(self):
         super().__init__()
+        self.setFilename(self.DEFAULT_FILENAME + '.' + self.DEFAULT_EXTANSIONS[0])
         self.__pk = -1                                  # value for generate primary key for table rows
         self.net_connections = []                       # main model table
         self.domainNameMode = True                      # return numeric address or domain name?
@@ -124,10 +128,12 @@ class TLTableModel(QAbstractTableModel):
             row = 0
         return self.net_connections[row][8]
 
+    @Slot(bool)
     def setDomainNameMode(self, flag: bool):
         """ numeric address or domain name? """
         self.domainNameMode = flag
 
+    @Slot(bool)
     def setServiceNameMode(self, flag: bool):
         """ numeric port or service name? """
         self.serviceNameMode = flag
@@ -303,3 +309,29 @@ class TLTableModel(QAbstractTableModel):
     def statusViewStr(self, row: int)-> str:
         status = self.status(row)
         return '' if status == "NONE" else status
+
+    def setFilename(self, filename: str) -> None:
+        if filename != "":
+            self._filename = filename
+
+    def filename(self) -> str:
+        return self._filename
+
+    @Slot()
+    def writeDataInFile(self)-> None:
+        # print(self._filename)
+        with open(self._filename, 'w') as file:
+            for i in range(len(self.TABLE_HEADERS)):
+                file.write(self.TABLE_HEADERS[i])
+                if i < len(self.TABLE_HEADERS) - 1:
+                    file.write(';')
+            file.write('\n')
+            for i in range(self.rowCount()):
+                file.write(self.processViewStr(i) + ';')
+                file.write(self.pidViewStr(i) + ';')
+                file.write(self.protocolViewStr(i) + ';')
+                file.write(self.localAddressViewStr(i) + ';')
+                file.write(self.localPortViewStr(i) + ';')
+                file.write(self.remoteAddressViewStr(i) + ';')
+                file.write(self.remotePortViewStr(i) + ';')
+                file.write(self.statusViewStr(i) + '\n')

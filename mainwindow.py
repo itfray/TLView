@@ -1,17 +1,19 @@
-from PySide2.QtWidgets import QMainWindow, QMenu, QAction, QMessageBox
+from PySide2.QtWidgets import QMainWindow, QMenu, QAction, QMessageBox, QFileDialog
 from ui_mainwindow import Ui_MainWindow
 from tltablemodel import TLTableModel
 from PySide2.QtCore import QTimer, Slot, Signal, Qt
 import psutil
 
 
-TIMER_VALUES = (1000, 3000, 5000)
+TIMER_VALUES = (1000, 2000, 5000)
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+
+        self.filename_save = ""
 
         # link model with view
         self.tableModel = TLTableModel()
@@ -34,6 +36,26 @@ class MainWindow(QMainWindow):
         # link tableview with context menu
         self.ui.tableView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.ui.tableView.customContextMenuRequested.connect(self.displayCustomContextMenu)
+
+        self.ui.actionExit.triggered.connect(self.close)
+        self.ui.actionResolve_Addresses.triggered.connect(self.tableModel.setDomainNameMode)
+        self.ui.actionResolve_Addresses.triggered.connect(self.tableModel.setServiceNameMode)
+
+        check_action1 = MainWindow.gen_check_for_checkable_action(self.ui.action1_seconds,
+                                                       self.ui.action2_seconds, self.ui.action3_seconds)
+        check_action2 = MainWindow.gen_check_for_checkable_action(self.ui.action2_seconds,
+                                                       self.ui.action1_seconds, self.ui.action3_seconds)
+        check_action3 = MainWindow.gen_check_for_checkable_action(self.ui.action3_seconds,
+                                                       self.ui.action1_seconds, self.ui.action2_seconds)
+        self.ui.action1_seconds.triggered.connect(check_action1)
+        self.ui.action2_seconds.triggered.connect(check_action2)
+        self.ui.action3_seconds.triggered.connect(check_action3)
+        self.ui.action1_seconds.triggered.connect(self.slot_action1_seconds)
+        self.ui.action2_seconds.triggered.connect(self.slot_action2_seconds)
+        self.ui.action3_seconds.triggered.connect(self.slot_action5_seconds)
+        self.ui.actionAbout.triggered.connect(self.slot_about)
+        self.ui.actionSave.triggered.connect(self.slot_save)
+        self.ui.actionSave_as.triggered.connect(self.slot_save_as)
 
     @Slot()
     def updateInfoInDownToolBar(self):
@@ -82,3 +104,58 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Process termination", "Access is denied. You need administrator rights!!!",
                                         QMessageBox.Ok)
         self.timer.start()
+
+    @staticmethod
+    def gen_check_for_checkable_action(act, *acts):
+        """ Function generate check function for
+            checkable actions """
+
+        @Slot(bool)
+        def check(value: bool):
+            if value:
+                # if one action checked, then other made unchecked
+                for a in acts:
+                    a.setChecked(False)
+            else:
+                # all actions can't be unchecked
+                act.setChecked(True)
+
+        return check
+
+    @Slot()
+    def slot_action1_seconds(self):
+        self.timer.setInterval(TIMER_VALUES[0])
+
+    @Slot()
+    def slot_action2_seconds(self):
+        self.timer.setInterval(TIMER_VALUES[1])
+
+    @Slot()
+    def slot_action5_seconds(self):
+        self.timer.setInterval(TIMER_VALUES[2])
+
+    @Slot()
+    def slot_about(self):
+        pass
+
+    @Slot()
+    def slot_save(self):
+        if self.filename_save == '':
+            self.save_table_dialog()
+        if self.filename_save != '':
+            print("file created!!!")
+            self.tableModel.writeDataInFile()
+
+    @Slot()
+    def slot_save_as(self):
+        self.save_table_dialog()
+        if self.filename_save != '':
+            print("file created!!!")
+            self.tableModel.writeDataInFile()
+
+    @Slot()
+    def save_table_dialog(self):
+        filename = f"/home/{self.tableModel.filename()}"
+        filter = f"Text files (*.{TLTableModel.DEFAULT_EXTANSIONS[0]} *.{TLTableModel.DEFAULT_EXTANSIONS[1]})"
+        self.filename_save = QFileDialog.getSaveFileName(self, "Save file", filename, filter)[0]
+        self.tableModel.setFilename(self.filename_save)
