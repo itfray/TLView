@@ -136,7 +136,9 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def slot_about(self):
-        pass
+        text = "TLView v1.0.0\nCopyright © 2020 \n" \
+               "For all questions please contact...\nMy e-mail: efarovila@gmail.com\n"
+        QMessageBox.information(self, "About TLView", text, QMessageBox.Ok)
 
     @Slot()
     def slot_save(self):
