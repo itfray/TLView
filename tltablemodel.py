@@ -3,12 +3,13 @@ import socket
 from PySide2.QtCore import QAbstractTableModel, Qt, QModelIndex, Slot
 from PySide2.QtGui import QColor
 from operator import itemgetter
-from work_with_list import lists_are_diff, tables_difference, updated_rows, get_of
+from work_with_list import lists_are_diff, tables_difference, updated_rows, get_of, new_primary_key
 from work_with_netdata import (nameTransportProtocol, ipToDomainName, portToServiceName,
                                isZeroIPAddress, psutilAddrToIPAndPort, CacheDomainNames)
 
 # class TLTableModel is model table for work with host's network connections on transport layer
 class TLTableModel(QAbstractTableModel):
+    MAX_PK = 2**64
     UNIQUE_KEY = tuple(i for i in range(2, 7))         # column numbers that uniquely identify a row in a table
     # All main headers in TLTableModel
     TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
@@ -18,14 +19,15 @@ class TLTableModel(QAbstractTableModel):
 
     def __init__(self):
         super().__init__()
+        self.__pk = -1                                  # value for generate primary key for table rows
         self.net_connections = []                       # main model table
         self.domainNameMode = True                      # return numeric address or domain name?
         self.cacheDomainNames = CacheDomainNames()      # for solved ip adresses to domain names for display in table
         self.serviceNameMode = True                     # return numeric port or service name?
         self.sortColumn = 0                             # sorted column number
         self.sortASC = True                             # ascending sort?
-        # lists unique keys deleted, created and updated rows
-        self.del_ukeys = self.new_ukeys = self.chg_ukeys = tuple()
+        # tuples primary keys deleted, created and updated rows
+        self.del_pks = self.new_pks = self.chg_pks = tuple()
         # create function for count the number of rows status == "ESTABLISHED"
         self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
         self.countListen = self.__generateCountValueInTable(7, "LISTEN")
@@ -33,6 +35,10 @@ class TLTableModel(QAbstractTableModel):
         self.countTimeWait = self.__generateCountValueInTable(7, "TIME_WAIT")
         # load system data in self.net_connections
         self.updateData()
+
+    def pk(self)-> int:
+        self.__pk = new_primary_key(self.__pk, self.MAX_PK)
+        return self.__pk
 
     def __generateCountValueInTable(self, column, value):
         """ This method creates a function-method for TLTableModel that counts the number of rows
@@ -46,49 +52,58 @@ class TLTableModel(QAbstractTableModel):
         return countValueInTable
 
     @staticmethod
-    def psutilConnectionToList(connection: psutil._common.sconn) -> list:
-        """ transfer psutil._common.sconn to list """
+    def psutilConnectionToList(connection: psutil._common.sconn, pk_function = lambda:0) -> list:
+        """ transfer psutil._common.sconn to list.
+            pk_function - function for generate primary key values for table rows"""
         try:
             process = psutil.Process(connection.pid)
             return [process.name(), connection.pid, (connection.family, connection.type),
                     *psutilAddrToIPAndPort(connection.laddr, connection.family),
-                    *psutilAddrToIPAndPort(connection.raddr, connection.family), connection.status]
+                    *psutilAddrToIPAndPort(connection.raddr, connection.family), connection.status,
+                    pk_function()]
         except psutil.NoSuchProcess:
             return []
 
     @staticmethod
-    def loadDataNetConnections()-> list:
+    def loadDataNetConnections(pk_function = lambda:0)-> list:
         """ load system data about all network connections on taransport layer and
-            create data table """
+            create data table.
+            pk_function - function for generate primary key values for table rows"""
         net_connections = []
         for connection in psutil.net_connections():
-            row = TLTableModel.psutilConnectionToList(connection)
+            row = TLTableModel.psutilConnectionToList(connection, pk_function)
             if len(row) > 0:
                 net_connections.append(row)
         return net_connections
+
+    def removeRowByPK(self, pk: int):
+        """ Function for remove row from
+            table by primary key"""
+        ind = -1
+        for i in range(self.rowCount()):
+            if self.primary_key(i) == pk:
+                ind = i
+                break
+        if ind >= 0:
+            self.net_connections.pop(ind)
 
     @Slot()
     def updateData(self):
         # notify the view of the begin of a radical change in data
         self.beginResetModel()
         # load system data about all network connections
-        net_connections = TLTableModel.loadDataNetConnections()
+        net_connections = TLTableModel.loadDataNetConnections(self.pk)
         # remove rows which were added from those deleted in the previous step
-        del_inds = []
-        for ukey in self.del_ukeys:
-            del_inds += [i for i in range(self.rowCount()) if self.unique_key(i) == ukey]
-        for ind in del_inds:
-            self.net_connections.pop(ind)
-
+        for pk in self.del_pks:
+            self.removeRowByPK(pk)
         del_rows = tables_difference(self.net_connections, net_connections, *TLTableModel.UNIQUE_KEY)
         new_rows = tables_difference(net_connections, self.net_connections, *TLTableModel.UNIQUE_KEY)
         chg_rows = updated_rows(self.net_connections, net_connections, TLTableModel.UNIQUE_KEY, (7,))
-        self.del_ukeys = self.table_to_unique_keys(del_rows)
-        self.new_ukeys = self.table_to_unique_keys(new_rows)
-        self.chg_ukeys = self.table_to_unique_keys(chg_rows)
+        self.del_pks = tuple(row[8] for row in del_rows)
+        self.new_pks = tuple(row[8] for row in new_rows)
+        self.chg_pks = tuple(row[8] for row in chg_rows)
+        # append del_rows for display in tableview deleted rows
         self.net_connections = net_connections + del_rows
-        # self.net_connections = net_connections
-
         # append in cache domain names created connections
         self.cacheDomainNames.append(
             *[(row[3], row[2][0]) for row in self.net_connections if row[3] not in self.cacheDomainNames],
@@ -96,26 +111,18 @@ class TLTableModel(QAbstractTableModel):
         self.sortData()
         # notify the view of the end of a radical change in data
         self.endResetModel()
-        # print(f'deleted = {self.deleted_rows}')
-        # print(f'created = {self.created_rows}')
-        # print(f'updated = {self.updated_rows}')
-        # print(f'cache = {self.cacheDomainNames}')
-        # print(f'len cache: {len(self.cacheDomainNames)}')
-        # print()
 
     def unique_key(self, row: int)-> tuple:
-        # a tuple of values ​​that uniquely identifies a row in a table
+        # a tuple of values that uniquely identifies a row in a table
         if not self.isRowValid(row):
             row = 0
-        return self.row_to_unique_key(self.net_connections[row])
+        return get_of(self.net_connections[row], *TLTableModel.UNIQUE_KEY)
 
-    @staticmethod
-    def table_to_unique_keys(table: list)-> tuple:
-        return tuple(TLTableModel.row_to_unique_key(row) for row in table)
-
-    @staticmethod
-    def row_to_unique_key(row: list)-> tuple:
-        return get_of(row, *TLTableModel.UNIQUE_KEY)
+    def primary_key(self, row: int)-> int:
+        # value that uniquely identifies a row in a table
+        if not self.isRowValid(row):
+            row = 0
+        return self.net_connections[row][8]
 
     def setDomainNameMode(self, flag: bool):
         """ numeric address or domain name? """
@@ -142,7 +149,6 @@ class TLTableModel(QAbstractTableModel):
             self.sortColumn = column
         # self.sortData()               # If you need instant results. Сreates additional load
 
-
     def setSortColumn(self, column: int):
         """ set sorted column number"""
         if self.isColumnValid(column):
@@ -158,9 +164,9 @@ class TLTableModel(QAbstractTableModel):
         return len(self.net_connections)
 
     def columnCount(self, parent = QModelIndex()):
-        if len(self.net_connections) == 0:
+        if self.rowCount() == 0:
             return 0
-        return len(self.net_connections[0])
+        return len(self.net_connections[0]) - 1
 
     def headerData(self, section, orientation, role):
         """ return every column header """
@@ -198,11 +204,11 @@ class TLTableModel(QAbstractTableModel):
             elif column == 7:
                 return self.statusViewStr(row)
         elif role == Qt.BackgroundRole:
-            if self.unique_key(row) in self.new_ukeys:
+            if self.primary_key(row) in self.new_pks:
                 return QColor(Qt.green)
-            elif self.unique_key(row) in self.chg_ukeys:
+            elif self.primary_key(row) in self.chg_pks:
                 return QColor(Qt.yellow)
-            elif self.unique_key(row) in self.del_ukeys:
+            elif self.primary_key(row) in self.del_pks:
                 return QColor(Qt.red)
             return QColor(Qt.white)
         elif role == Qt.TextAlignmentRole:
@@ -238,8 +244,7 @@ class TLTableModel(QAbstractTableModel):
         return self.realData(row, 3)
 
     def localDomainName(self, row: int) -> str:
-        return self.cacheDomainNames.domain_name(self.realData(row, 3),
-                                                 socket.inet_ntop(sself.realData(row, 2)[0], self.realData(row, 3)))
+        return ipToDomainName(socket.inet_ntop(self.realData(row, 2)[0], self.realData(row, 3)))
 
     def localPort(self, row: int) -> int:
         return self.realData(row, 4)
@@ -251,8 +256,7 @@ class TLTableModel(QAbstractTableModel):
         return self.realData(row, 5)
 
     def remoteDomainName(self, row: int) -> str:
-        return self.cacheDomainNames.domain_name(self.realData(row, 5),
-                                                 socket.inet_ntop(sself.realData(row, 2)[0], self.realData(row, 5)))
+        return ipToDomainName(socket.inet_ntop(self.realData(row, 2)[0], self.realData(row, 5)))
 
     def remotePort(self, row: int) -> int:
         return self.realData(row, 6)

@@ -47,3 +47,12 @@ def get_of(data, *inds, **kwargs):
         * ind - element's index;
         * data - collection of elements"""
     return kwargs.get('type', tuple)(data[ind] for ind in inds)
+
+def new_primary_key(pk: int, max_pk: int)-> int:
+    """ Function return new value primary key
+        * pk - current primary key value;
+        * max_pk - maximum primary key value; """
+    pk += 1
+    if pk >= max_pk:
+        pk = 0
+    return pk
