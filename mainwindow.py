@@ -1,12 +1,11 @@
 from PySide2.QtWidgets import QMainWindow, QMenu, QAction, QMessageBox
 from ui_mainwindow import Ui_MainWindow
 from tltablemodel import TLTableModel
-from PySide2.QtCore import QTimer, Slot, Signal, QThread, Qt
+from PySide2.QtCore import QTimer, Slot, Signal, Qt
 import psutil
 
 
 TIMER_VALUES = (1000, 3000, 5000)
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
