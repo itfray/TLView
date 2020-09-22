@@ -98,7 +98,6 @@ class CacheDomainNames(multi_thread.MultiThread):
         # addr: tuple(bytes, socket.AddressFamily)
         """ function of adding multiple records to cache
             and works in multi-threaded mode"""
-        self.remove_dead_threads()
         self.remove_dead_domain_names()
         # filter out addresses that are already being examined by other threads
         addrs = self.find_args_not_in_threads(self.__append, *addrs)

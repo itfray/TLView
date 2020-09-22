@@ -22,6 +22,7 @@ class MultiThread:
                False - cannot be started since the number
                        of threads is equal to the number of logical cores
                True - function run in new thread"""
+        self.remove_dead_threads()
         if len(self.__threads) < self.max_count_threads():
             thread = threading.Thread(target=func, args=args, daemon=True)
             thread.work_function = func
