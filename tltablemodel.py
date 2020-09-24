@@ -3,7 +3,7 @@ import socket
 from PySide2.QtCore import QAbstractTableModel, Qt, QModelIndex, Slot
 from PySide2.QtGui import QColor
 from operator import itemgetter
-from work_with_list import lists_are_diff, tables_difference, updated_rows
+from work_with_list import lists_are_diff, tables_difference, updated_rows, get_of
 from work_with_netdata import (nameTransportProtocol, ipToDomainName, portToServiceName,
                                isZeroIPAddress, psutilAddrToIPAndPort, CacheDomainNames)
 
@@ -13,8 +13,8 @@ class TLTableModel(QAbstractTableModel):
     # All main headers in TLTableModel
     TABLE_HEADERS = ("Process", "PID", "Protocol", "Local Address", "Local Port",
                      "Remote Address", "Remote Port", "Status")
-    SIGN_ASC = '++'
-    SIGN_DESC = '--'
+    SIGN_ASC = '⯅'
+    SIGN_DESC = '⯆'
 
     def __init__(self):
         super().__init__()
@@ -24,7 +24,8 @@ class TLTableModel(QAbstractTableModel):
         self.serviceNameMode = True                     # return numeric port or service name?
         self.sortColumn = 0                             # sorted column number
         self.sortASC = True                             # ascending sort?
-        self.deleted_rows = self.created_rows = self.updated_rows = []              # since last data update
+        # lists unique keys deleted, created and updated rows
+        self.del_ukeys = self.new_ukeys = self.chg_ukeys = tuple()
         # create function for count the number of rows status == "ESTABLISHED"
         self.countEstablished = self.__generateCountValueInTable(7, "ESTABLISHED")
         self.countListen = self.__generateCountValueInTable(7, "LISTEN")
@@ -72,10 +73,22 @@ class TLTableModel(QAbstractTableModel):
         self.beginResetModel()
         # load system data about all network connections
         net_connections = TLTableModel.loadDataNetConnections()
-        self.deleted_rows = tables_difference(self.net_connections, net_connections, *TLTableModel.UNIQUE_KEY)
-        self.created_rows = tables_difference(net_connections, self.net_connections, *TLTableModel.UNIQUE_KEY)
-        self.updated_rows = updated_rows(self.net_connections, net_connections, TLTableModel.UNIQUE_KEY, (7,))
-        self.net_connections = net_connections
+        # remove rows which were added from those deleted in the previous step
+        del_inds = []
+        for ukey in self.del_ukeys:
+            del_inds += [i for i in range(self.rowCount()) if self.unique_key(i) == ukey]
+        for ind in del_inds:
+            self.net_connections.pop(ind)
+
+        del_rows = tables_difference(self.net_connections, net_connections, *TLTableModel.UNIQUE_KEY)
+        new_rows = tables_difference(net_connections, self.net_connections, *TLTableModel.UNIQUE_KEY)
+        chg_rows = updated_rows(self.net_connections, net_connections, TLTableModel.UNIQUE_KEY, (7,))
+        self.del_ukeys = self.table_to_unique_keys(del_rows)
+        self.new_ukeys = self.table_to_unique_keys(new_rows)
+        self.chg_ukeys = self.table_to_unique_keys(chg_rows)
+        self.net_connections = net_connections + del_rows
+        # self.net_connections = net_connections
+
         # append in cache domain names created connections
         self.cacheDomainNames.append(
             *[(row[3], row[2][0]) for row in self.net_connections if row[3] not in self.cacheDomainNames],
@@ -92,7 +105,17 @@ class TLTableModel(QAbstractTableModel):
 
     def unique_key(self, row: int)-> tuple:
         # a tuple of values ​​that uniquely identifies a row in a table
-        return tuple(self.net_connections[row][column] for column in TLTableModel.UNIQUE_KEY)
+        if not self.isRowValid(row):
+            row = 0
+        return self.row_to_unique_key(self.net_connections[row])
+
+    @staticmethod
+    def table_to_unique_keys(table: list)-> tuple:
+        return tuple(TLTableModel.row_to_unique_key(row) for row in table)
+
+    @staticmethod
+    def row_to_unique_key(row: list)-> tuple:
+        return get_of(row, *TLTableModel.UNIQUE_KEY)
 
     def setDomainNameMode(self, flag: bool):
         """ numeric address or domain name? """
@@ -110,6 +133,8 @@ class TLTableModel(QAbstractTableModel):
     @Slot()
     def sortDataByColumn(self, column: int):
         """ set sorts model data by column """
+        if not self.isColumnValid(column):
+            return
         if column == self.sortColumn:
             self.sortASC = not self.sortASC
         else:
@@ -120,7 +145,7 @@ class TLTableModel(QAbstractTableModel):
 
     def setSortColumn(self, column: int):
         """ set sorted column number"""
-        if column > 0 or column < self.columnCount():
+        if self.isColumnValid(column):
             self.sortColumn = column
         else:
             self.sortColumn = 0
@@ -173,17 +198,29 @@ class TLTableModel(QAbstractTableModel):
             elif column == 7:
                 return self.statusViewStr(row)
         elif role == Qt.BackgroundRole:
+            if self.unique_key(row) in self.new_ukeys:
+                return QColor(Qt.green)
+            elif self.unique_key(row) in self.chg_ukeys:
+                return QColor(Qt.yellow)
+            elif self.unique_key(row) in self.del_ukeys:
+                return QColor(Qt.red)
             return QColor(Qt.white)
         elif role == Qt.TextAlignmentRole:
             return Qt.AlignRight
         return None
 
+    def isRowValid(self, row: int)-> bool:
+        return row >= 0 and row < self.rowCount()
+
+    def isColumnValid(self, column: int)-> bool:
+        return column >= 0 and column < self.columnCount()
+
     def realData(self, row: int, column: int):
         """ get real data of model """
-        if row < 0 or row >= self.rowCount() \
-                or column < 0 or column >= self.columnCount():
+        if self.isRowValid(row) and self.isColumnValid(column):
+            return self.net_connections[row][column]
+        else:
             return None
-        return self.net_connections[row][column]
 
     def countEndpoints(self):
         return self.rowCount()

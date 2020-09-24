@@ -38,3 +38,12 @@ def updated_rows(old_table: list, new_table: list, indexes_id: tuple, indexes_cm
                     lists_are_diff(old_table[i], new_table[j], *indexes_cmp):
                 answer.append(old_table[i])
     return answer
+
+def get_of(data, *inds, **kwargs):
+    # inds: tuple(int,...)
+    """ Function return set elements
+        with specified indices.
+        * inds - elements indices;
+        * ind - element's index;
+        * data - collection of elements"""
+    return kwargs.get('type', tuple)(data[ind] for ind in inds)
